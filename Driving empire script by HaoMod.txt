@@ -79,7 +79,7 @@ local Window = Rayfield:CreateWindow({
    Name = "Hào Mod Hub 🏎️",
    Icon = "car",
    LoadingTitle = "Hào Mod Hub",
-   LoadingSubtitle = "Script được tạo bởi Hào Mod | Telegram : @Ghaodeptrai",
+   LoadingSubtitle = "Chào mừng bạn!",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "HaoModHub",
@@ -1086,9 +1086,16 @@ task.spawn(function()
     end
 end)
 
--- Cày Tiền ATM
+-- ============================================================================
+-- PHẦN CÀY TIỀN ATM - ĐÃ NÂNG CẤP VỚI TÍNH NĂNG TELE ĐẾN NGƯỜI CHƠI
+-- ============================================================================
+
 local ATMFlag = { Search = false }
 local noclipConnection = nil
+
+-- BIẾN MỚI: Lưu tên người chơi được chọn để tele khi đủ túi
+local SelectedPlayerForTeleport = nil
+local TeleportOnFullEnabled = false
 
 local spawnPos = Vector3.new(-315.4537353515625, 17.595108032226562, -1660.684326171875)
 local platformPositions = {
@@ -1159,6 +1166,68 @@ local function tpTo(pos)
     end
 end
 
+-- HÀM MỚI: Dịch chuyển đến người chơi được chọn
+local function TeleportToSelectedPlayer()
+    if not SelectedPlayerForTeleport then 
+        Rayfield:Notify({
+            Title = "Lỗi Tele",
+            Content = "Chưa chọn người chơi để tele!",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        return 
+    end
+    
+    local targetPlayer = Players:FindFirstChild(SelectedPlayerForTeleport)
+    if not targetPlayer or not targetPlayer.Character then 
+        Rayfield:Notify({
+            Title = "Lỗi Tele",
+            Content = "Người chơi không tồn tại hoặc đã rời game!",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        return 
+    end
+    
+    local targetPivot = targetPlayer.Character:GetPivot()
+    local destCFrame = targetPivot * CFrame.new(0, 8, 0)
+    
+    local myVeh = GetMyVehicle()
+    local isDriving = myVeh and myVeh:FindFirstChild("Driver") and myVeh.Driver.Value == LocalPlayer
+
+    setStatus("Đang tele đến " .. SelectedPlayerForTeleport .. "...")
+    
+    if isDriving and myVeh then
+        -- Teleport cả xe
+        local allParts = {}
+        for _, p in pairs(myVeh:GetDescendants()) do
+            if p:IsA("BasePart") then table.insert(allParts, p) end
+        end
+
+        for _, p in pairs(allParts) do p.Anchored = true end
+        myVeh:PivotTo(destCFrame)
+        task.wait(0.2)
+
+        for _, p in pairs(allParts) do
+            p.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            p.AssemblyAngularVelocity = Vector3.new(0,0,0)
+            p.Anchored = false
+        end
+    else
+        -- Teleport chỉ người chơi
+        if LocalPlayer.Character then
+            LocalPlayer.Character:PivotTo(destCFrame)
+        end
+    end
+    
+    Rayfield:Notify({
+        Title = "Đã Tele!",
+        Content = "Đã tele đến " .. SelectedPlayerForTeleport,
+        Duration = 3,
+        Image = 4483362458,
+    })
+end
+
 local function SimpleGoTo(destination, timeout)
     local char = LocalPlayer.Character
     local human = char and char:FindFirstChildOfClass("Humanoid")
@@ -1212,6 +1281,7 @@ local function notifyUpdate(taskName, value)
     })
 end
 
+-- HÀM CẢI TIẾN: Kiểm tra giới hạn túi và tele nếu được bật
 local function CheckBagLimit()
     if not ATMFlag.Search then return false end
     
@@ -1219,6 +1289,13 @@ local function CheckBagLimit()
     local limit = Rayfield.Flags.BagSlider and Rayfield.Flags.BagSlider.CurrentValue or 25
     
     if currentCrimes >= limit then
+        -- KIỂM TRA: Nếu bật tính năng tele đến người chơi
+        if TeleportOnFullEnabled then
+            setStatus("Đủ túi! Đang tele đến người chơi...")
+            TeleportToSelectedPlayer()
+            task.wait(1) -- Đợi 1 giây sau khi tele
+        end
+        
         setStatus("Đã đạt giới hạn ("..currentCrimes..") - Bán hàng...")
         
         while currentCrimes >= limit and ATMFlag.Search do
@@ -1334,6 +1411,10 @@ function StopATMFarm()
     setStatus("Farm đã tắt")
 end
 
+-- ============================================================================
+-- GIAO DIỆN NGƯỜI DÙNG - TAB FARM (CÓ TÍNH NĂNG MỚI)
+-- ============================================================================
+
 TabFarm:CreateToggle({
     Name = "Bật Farm ATM",
     CurrentValue = false,
@@ -1355,6 +1436,88 @@ TabFarm:CreateSlider({
 
 StatusLabel = TabFarm:CreateLabel("Trạng Thái: Chờ...")
 ProgressLabel = TabFarm:CreateLabel("Tiến Độ: 0 / 0")
+
+-- ============================================================================
+-- PHẦN MỚI: TÍNH NĂNG TELE ĐẾN NGƯỜI CHƠI KHI ĐỦ TÚI
+-- ============================================================================
+
+local TeleSection = TabFarm:CreateSection("🎯 Tele Đến Người Chơi Khi Đủ Túi")
+
+local TelePlayerDropdown = TabFarm:CreateDropdown({
+   Name = "Chọn Người Chơi Để Tele",
+   Options = getPlayerNames(), 
+   CurrentOption = "",
+   MultipleOptions = false,
+   Flag = "TelePlayerDropdown",
+   Callback = function(Option)
+      SelectedPlayerForTeleport = Option[1]
+      Rayfield:Notify({
+          Title = "Đã Chọn Người Chơi",
+          Content = "Sẽ tele đến: " .. tostring(Option[1]),
+          Duration = 3,
+          Image = 4483362458,
+      })
+   end,
+})
+
+TabFarm:CreateButton({
+   Name = "🔄 Làm Mới Danh Sách Người Chơi",
+   Callback = function()
+      if TelePlayerDropdown then
+         local names = getPlayerNames()
+         TelePlayerDropdown:Set(names)
+         Rayfield:Notify({
+            Title = "Đã Cập Nhật",
+            Content = "Tìm thấy " .. #names .. " người chơi.",
+            Duration = 3
+         })
+      end
+   end,
+})
+
+TabFarm:CreateToggle({
+    Name = "✅ Bật Tele Khi Đủ Túi",
+    CurrentValue = false,
+    Flag = "TeleOnFullToggle",
+    Callback = function(Value)
+        TeleportOnFullEnabled = Value
+        if Value then
+            if not SelectedPlayerForTeleport then
+                Rayfield:Notify({
+                    Title = "Cảnh Báo",
+                    Content = "Hãy chọn người chơi trước!",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Tính Năng Đã Bật",
+                    Content = "Sẽ tele đến " .. SelectedPlayerForTeleport .. " khi đủ túi!",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+            end
+        else
+            Rayfield:Notify({
+                Title = "Tính Năng Đã Tắt",
+                Content = "Đã tắt tele tự động.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+TabFarm:CreateButton({
+   Name = "🚀 Test Tele Ngay (Không Cần Đủ Túi)",
+   Callback = function()
+      TeleportToSelectedPlayer()
+   end,
+})
+
+-- ============================================================================
+-- PHẦN CẤU HÌNH DELAYS (GIỮ NGUYÊN)
+-- ============================================================================
 
 TabFarm:CreateLabel("⚙️ CẤU HÌNH TỐC ĐỘ Farm (DELAYS)")
 
