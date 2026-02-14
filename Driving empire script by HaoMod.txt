@@ -26,7 +26,6 @@ local function ExecuteServerHop()
     local TeleportService = game:GetService("TeleportService")
     local PlaceID = game.PlaceId
     
-    -- Queue on teleport cho mobile
     local qot = queue_on_teleport
     if qot then
         qot([[
@@ -70,7 +69,6 @@ local function ExecuteServerHop()
     end
 end
 
--- Cài đặt mặc định
 _G.SpeedEnabled = false
 _G.SpeedMode = "Legit"
 _G.SpeedValue = 16
@@ -79,7 +77,7 @@ local Window = Rayfield:CreateWindow({
    Name = "Hào Mod Hub 🏎️",
    Icon = "car",
    LoadingTitle = "Hào Mod Hub",
-   LoadingSubtitle = "Chào mừng bạn!",
+   LoadingSubtitle = "Onwer: Hao Mod | Telegram: @Ghaodeptrai",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "HaoModHub",
@@ -87,15 +85,12 @@ local Window = Rayfield:CreateWindow({
    },
 })
 
--- Các Tab
 local TabPlayer = Window:CreateTab("Người Chơi", "user")
 local TabVehicle = Window:CreateTab("Xe", "car-front")
 local TabFarm = Window:CreateTab("Cày Tiền", "tractor")
 local TabStats = Window:CreateTab("Thống Kê", "bar-chart-2")
 local TabVisuals = Window:CreateTab("Hiển Thị", "eye")
 local TabJobs = Window:CreateTab("Công Việc", "briefcase")
-
--- PHẦN NGƯỜI CHƠI
 
 local function GetMyVehicle()
     local folder = workspace:FindFirstChild("Vehicles")
@@ -154,7 +149,6 @@ TabPlayer:CreateButton({
    end,
 })
 
--- Bypass System
 local BypassActive = false
 local HookInstalled = false
 local BlockCount = 0
@@ -434,7 +428,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Chế Độ Bay
 local flyConnection
 _G.FlySpeed = _G.FlySpeed or 50
 _G.FlyEnabled = false
@@ -535,7 +528,6 @@ TabPlayer:CreateSlider({
    end,
 })
 
--- ESP
 _G.ESP_Enabled = false
 _G.ESP_Targets = {
     Players = true,
@@ -749,7 +741,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Công Việc
 local JobActions = TabJobs:CreateSection("Tham Gia Công Việc")
 
 TabJobs:CreateButton({
@@ -798,7 +789,6 @@ task.spawn(function()
     end
 end)
 
--- Thông Tin Xe
 local VehInfoSection = TabVehicle:CreateSection("Thống Kê Xe Đang Dùng")
 
 local ModelLabel = TabVehicle:CreateLabel("Mẫu Xe: Không Có")
@@ -947,7 +937,6 @@ task.spawn(function()
     end
 end)
 
--- Thống Kê
 local NeutralSection = TabStats:CreateSection("Thuộc Tính Người Chơi")
 
 local attributesToTrack = {
@@ -1087,13 +1076,16 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- PHẦN CÀY TIỀN ATM - ĐÃ NÂNG CẤP VỚI TÍNH NĂNG TELE ĐẾN NGƯỜI CHƠI
+-- PHẦN CÀY TIỀN ATM - LOGIC MỚI: CHỜ CẢNH SÁT LẤY TIỀN
 -- ============================================================================
 
 local ATMFlag = { Search = false }
 local noclipConnection = nil
 
--- BIẾN MỚI: Lưu tên người chơi được chọn để tele khi đủ túi
+-- BIẾN TRẠNG THÁI MỚI
+local IsWaitingAtPlayer = false
+local BagCountBeforeTele = 0 -- Lưu số túi trước khi tele
+
 local SelectedPlayerForTeleport = nil
 local TeleportOnFullEnabled = false
 
@@ -1159,6 +1151,7 @@ local function removeAllPlatforms()
 end
 
 local function tpTo(pos)
+    if IsWaitingAtPlayer then return end
     if not ATMFlag.Search and pos ~= spawnPos then return end
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
@@ -1166,7 +1159,7 @@ local function tpTo(pos)
     end
 end
 
--- HÀM MỚI: Dịch chuyển đến người chơi được chọn
+-- HÀM TELE ĐẾN NGƯỜI CHƠI
 local function TeleportToSelectedPlayer()
     if not SelectedPlayerForTeleport then 
         Rayfield:Notify({
@@ -1190,7 +1183,7 @@ local function TeleportToSelectedPlayer()
     end
     
     local targetPivot = targetPlayer.Character:GetPivot()
-    local destCFrame = targetPivot * CFrame.new(0, 8, 0)
+    local destCFrame = targetPivot * CFrame.new(0, 3, 0)
     
     local myVeh = GetMyVehicle()
     local isDriving = myVeh and myVeh:FindFirstChild("Driver") and myVeh.Driver.Value == LocalPlayer
@@ -1198,7 +1191,6 @@ local function TeleportToSelectedPlayer()
     setStatus("Đang tele đến " .. SelectedPlayerForTeleport .. "...")
     
     if isDriving and myVeh then
-        -- Teleport cả xe
         local allParts = {}
         for _, p in pairs(myVeh:GetDescendants()) do
             if p:IsA("BasePart") then table.insert(allParts, p) end
@@ -1214,7 +1206,6 @@ local function TeleportToSelectedPlayer()
             p.Anchored = false
         end
     else
-        -- Teleport chỉ người chơi
         if LocalPlayer.Character then
             LocalPlayer.Character:PivotTo(destCFrame)
         end
@@ -1281,7 +1272,9 @@ local function notifyUpdate(taskName, value)
     })
 end
 
--- HÀM CẢI TIẾN: Kiểm tra giới hạn túi và tele nếu được bật
+-- ============================================================================
+-- LOGIC MỚI HOÀN TOÀN: CHỜ CẢNH SÁT LẤY TIỀN
+-- ============================================================================
 local function CheckBagLimit()
     if not ATMFlag.Search then return false end
     
@@ -1289,28 +1282,88 @@ local function CheckBagLimit()
     local limit = Rayfield.Flags.BagSlider and Rayfield.Flags.BagSlider.CurrentValue or 25
     
     if currentCrimes >= limit then
-        -- KIỂM TRA: Nếu bật tính năng tele đến người chơi
+        
         if TeleportOnFullEnabled then
-            setStatus("Đủ túi! Đang tele đến người chơi...")
-            TeleportToSelectedPlayer()
-            task.wait(1) -- Đợi 1 giây sau khi tele
-        end
-        
-        setStatus("Đã đạt giới hạn ("..currentCrimes..") - Bán hàng...")
-        
-        while currentCrimes >= limit and ATMFlag.Search do
-            SetNoclip(true)
-            tpTo(sellPos1)
-            task.wait(Config.task1)
-            setStatus("Đi đến điểm bán...")
-            SimpleGoTo(sellPos2, 2)
-            task.wait(Config.task2)
+            -- ============================================================
+            -- CHẾ ĐỘ MỚI: TELE VÀ CHỜ CẢNH SÁT LẤY TIỀN
+            -- ============================================================
             
-            currentCrimes = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("CrimesCommitted") or 0
+            setStatus("🎯 Đã đủ túi! Dừng farm để tele...")
+            IsWaitingAtPlayer = true
+            
+            -- LƯU SỐ TÚI TRƯỚC KHI TELE
+            BagCountBeforeTele = currentCrimes
+            
+            -- Tele đến người chơi
+            TeleportToSelectedPlayer()
+            
+            -- VÒNG LẶP CHỜ: Kiểm tra liên tục xem số túi có giảm không
+            setStatus("⏳ Chờ cảnh sát lấy tiền... (Túi: " .. currentCrimes .. ")")
+            
+            local waitStartTime = tick()
+            local maxWaitTime = 300 -- Timeout sau 5 phút (300 giây)
+            
+            while ATMFlag.Search and IsWaitingAtPlayer do
+                -- Đọc số túi hiện tại
+                currentCrimes = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("CrimesCommitted") or 0
+                
+                -- KIỂM TRA: Nếu số túi GIẢM so với lúc tele = Cảnh sát đã lấy tiền
+                if currentCrimes < BagCountBeforeTele then
+                    setStatus("✅ Cảnh sát đã lấy tiền! Túi còn: " .. currentCrimes)
+                    Rayfield:Notify({
+                        Title = "Đã Lấy Tiền!",
+                        Content = "Cảnh sát lấy " .. (BagCountBeforeTele - currentCrimes) .. " túi. Tiếp tục farm!",
+                        Duration = 3,
+                        Image = 4483362458,
+                    })
+                    break -- Thoát vòng lặp
+                end
+                
+                -- Timeout sau 5 phút (phòng trường hợp không có cảnh sát)
+                if (tick() - waitStartTime) > maxWaitTime then
+                    setStatus("⚠️ Timeout! Tiếp tục farm sau 5 phút chờ.")
+                    Rayfield:Notify({
+                        Title = "Timeout",
+                        Content = "Không có cảnh sát sau 5 phút. Tiếp tục farm!",
+                        Duration = 3,
+                        Image = 4483362458,
+                    })
+                    break
+                end
+                
+                -- Cập nhật status mỗi giây
+                setStatus("⏳ Chờ cảnh sát... (Túi: " .. currentCrimes .. " | " .. math.floor(tick() - waitStartTime) .. "s)")
+                
+                -- Kiểm tra mỗi 0.5 giây
+                task.wait(0.5)
+            end
+            
+            -- TẮT CỜ VÀ TIẾP TỤC FARM
+            IsWaitingAtPlayer = false
+            setStatus("🔄 Tiếp tục farm...")
+            return true
+            
+        else
+            -- ============================================================
+            -- CHẾ ĐỘ BÁN BÌNH THƯỜNG
+            -- ============================================================
+            
+            setStatus("Đã đạt giới hạn ("..currentCrimes..") - Bán hàng...")
+            
+            while currentCrimes >= limit and ATMFlag.Search do
+                SetNoclip(true)
+                tpTo(sellPos1)
+                task.wait(Config.task1)
+                setStatus("Đi đến điểm bán...")
+                SimpleGoTo(sellPos2, 2)
+                task.wait(Config.task2)
+                
+                currentCrimes = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("CrimesCommitted") or 0
+            end
+            
+            setStatus("Đã bán! Quay lại làm việc.")
+            return true
         end
-        
-        setStatus("Đã bán! Quay lại làm việc.")
-        return true
     end
     return false
 end
@@ -1347,10 +1400,16 @@ end
 local function StartLoop()
     task.spawn(function()
         while ATMFlag.Search do
+            if IsWaitingAtPlayer then
+                task.wait(0.5)
+                continue
+            end
+            
             CheckBagLimit()
 
             for _, platformPos in ipairs(platformPositions) do
                 if not ATMFlag.Search then break end
+                if IsWaitingAtPlayer then break end
                 
                 if CheckBagLimit() then
                     tpTo(platformPos) 
@@ -1378,6 +1437,8 @@ end
 function StartATMFarm()
     if ATMFlag.Search then return end
     ATMFlag.Search = true
+    IsWaitingAtPlayer = false
+    BagCountBeforeTele = 0
 
     setStatus("Bước 1: Xác minh đội")
     pcall(function() RemoteStart:FireServer("Criminal", "jobPad") end)
@@ -1399,6 +1460,7 @@ end
 function StopATMFarm()
     if not ATMFlag.Search then return end
     ATMFlag.Search = false
+    IsWaitingAtPlayer = false
     setStatus("Đang dừng...")
     
     tpTo(spawnPos)
@@ -1412,7 +1474,7 @@ function StopATMFarm()
 end
 
 -- ============================================================================
--- GIAO DIỆN NGƯỜI DÙNG - TAB FARM (CÓ TÍNH NĂNG MỚI)
+-- GIAO DIỆN
 -- ============================================================================
 
 TabFarm:CreateToggle({
@@ -1436,10 +1498,6 @@ TabFarm:CreateSlider({
 
 StatusLabel = TabFarm:CreateLabel("Trạng Thái: Chờ...")
 ProgressLabel = TabFarm:CreateLabel("Tiến Độ: 0 / 0")
-
--- ============================================================================
--- PHẦN MỚI: TÍNH NĂNG TELE ĐẾN NGƯỜI CHƠI KHI ĐỦ TÚI
--- ============================================================================
 
 local TeleSection = TabFarm:CreateSection("🎯 Tele Đến Người Chơi Khi Đủ Túi")
 
@@ -1476,7 +1534,7 @@ TabFarm:CreateButton({
 })
 
 TabFarm:CreateToggle({
-    Name = "✅ Bật Tele Khi Đủ Túi",
+    Name = "✅ Bật Tele & Chờ Cảnh Sát Lấy Tiền",
     CurrentValue = false,
     Flag = "TeleOnFullToggle",
     Callback = function(Value)
@@ -1491,16 +1549,16 @@ TabFarm:CreateToggle({
                 })
             else
                 Rayfield:Notify({
-                    Title = "Tính Năng Đã Bật",
-                    Content = "Sẽ tele đến " .. SelectedPlayerForTeleport .. " khi đủ túi!",
-                    Duration = 3,
+                    Title = "Chế Độ Chờ Cảnh Sát",
+                    Content = "Sẽ tele đến " .. SelectedPlayerForTeleport .. " và CHỜ cảnh sát lấy tiền!",
+                    Duration = 4,
                     Image = 4483362458,
                 })
             end
         else
             Rayfield:Notify({
-                Title = "Tính Năng Đã Tắt",
-                Content = "Đã tắt tele tự động.",
+                Title = "Chế Độ Bán Bình Thường",
+                Content = "Đã tắt. Sẽ tự động bán túi khi đủ.",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1514,10 +1572,6 @@ TabFarm:CreateButton({
       TeleportToSelectedPlayer()
    end,
 })
-
--- ============================================================================
--- PHẦN CẤU HÌNH DELAYS (GIỮ NGUYÊN)
--- ============================================================================
 
 TabFarm:CreateLabel("⚙️ CẤU HÌNH TỐC ĐỘ Farm (DELAYS)")
 
@@ -1629,7 +1683,11 @@ task.spawn(function()
                 local lim = (Rayfield.Flags.BagSlider and Rayfield.Flags.BagSlider.CurrentValue) or 0
                 ProgressLabel:Set("Tiến Độ: " .. cur .. " / " .. lim)
                 if cur >= lim and lim > 0 then
-                    ProgressLabel:Set("Tiến Độ: " .. cur .. " / " .. lim .. " (ĐẦY! 💰)")
+                    if TeleportOnFullEnabled then
+                        ProgressLabel:Set("Tiến Độ: " .. cur .. " / " .. lim .. " (ĐẦY! 👮 Chờ cảnh sát)")
+                    else
+                        ProgressLabel:Set("Tiến Độ: " .. cur .. " / " .. lim .. " (ĐẦY! 💰 Đang bán)")
+                    end
                 end
             end
         end)
